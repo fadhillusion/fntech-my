@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-// 1. Import Poppins dari Google Fonts
 import { Poppins } from "next/font/google";
-import "./globals.css";
+import "./globals.css";  // <--- PASTIKAN NI ADA!
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 
