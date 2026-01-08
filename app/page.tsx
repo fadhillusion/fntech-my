@@ -1,22 +1,21 @@
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
-// Define the shape of the Post data
-interface Post {
-  id: string; // or number, depending on your schema
-  title: string;
-  slug: string;
-  image_url?: string | null; // Adjust field name to match your DB (e.g., 'thumbnail', 'cover_image')
-  excerpt?: string;
-  created_at: string;
-}
-
-// ISR: Revalidate the page every 60 seconds (optional, adjust as needed)
+// Ini setting supaya Next.js tak simpan cache lama sangat (60 saat refresh)
 export const revalidate = 60;
 
+interface Post {
+  id: string;
+  title: string;
+  slug: string;
+  image_url?: string | null;
+  excerpt?: string;
+  created_at: string;
+  category?: string;
+}
+
 export default async function Home() {
-  // Fetch posts from Supabase
-  // We explicitly select the fields we need
+  // 1. Tarik data dari Supabase
   const { data: posts, error } = await supabase
     .from('posts')
     .select('*')
@@ -25,93 +24,135 @@ export default async function Home() {
 
   if (error) {
     console.error('Error fetching posts:', error);
+    return <div className="p-10 text-center text-red-500">Error loading posts.</div>;
+  }
+
+  // Kalau tak ada post langsung
+  if (!posts || posts.length === 0) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-red-500">Failed to load posts. Please try again later.</p>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
+        <h2 className="text-3xl font-bold text-gray-900">Belum ada berita tech!</h2>
+        <p className="text-gray-500 mt-2">Admin tengah minum kopi. Sila datang balik nanti.</p>
       </div>
     );
   }
 
-  return (
-    <main className="min-h-screen bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <header className="mb-12 text-center">
-          <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl">
-            Latest Updates
-          </h1>
-          <p className="mt-4 text-lg text-gray-600">
-            Check out our most recent stories and articles.
-          </p>
-        </header>
+  // 2. Asingkan Post Utama (Hero) dengan Post Lain
+  const heroPost = posts[0]; // Ambil post paling baru
+  const otherPosts = posts.slice(1); // Ambil baki post lain
 
-        {!posts || posts.length === 0 ? (
-          <div className="text-center text-gray-500">
-            <p>No posts found.</p>
+  return (
+    <div className="bg-white pb-20">
+      
+      {/* --- SECTION 1: HERO (BERITA UTAMA) --- */}
+      {/* Ini design besar gedabak kat atas macam The Verge */}
+      <section className="relative w-full h-[500px] md:h-[600px] overflow-hidden group">
+        <Link href={`/blog/${heroPost.slug}`} className="block w-full h-full">
+          
+          {/* Gambar Background */}
+          <div className="absolute inset-0">
+            {heroPost.image_url ? (
+              <img
+                src={heroPost.image_url}
+                alt={heroPost.title}
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+              />
+            ) : (
+              <div className="w-full h-full bg-gray-800" />
+            )}
+            {/* Overlay Gelap (Supaya tulisan nampak) */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-90" />
           </div>
-        ) : (
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {posts.map((post: Post) => (
-              <article
-                key={post.id}
-                className="flex flex-col overflow-hidden rounded-lg bg-white shadow-md transition-shadow hover:shadow-xl"
-              >
-                {/* Card Image */}
+
+          {/* Tulisan Hero */}
+          <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 max-w-4xl">
+            <span className="inline-block px-3 py-1 mb-4 text-xs font-bold tracking-wider text-white uppercase bg-blue-600 rounded-full">
+              Featured Story
+            </span>
+            <h1 className="text-3xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-4 drop-shadow-lg">
+              {heroPost.title}
+            </h1>
+            <p className="text-gray-200 text-lg md:text-xl line-clamp-2 max-w-2xl mb-6 hidden md:block">
+              {heroPost.excerpt || "Baca ulasan penuh mengenai topik teknologi terkini di sini."}
+            </p>
+            <div className="flex items-center text-gray-300 text-sm font-medium">
+              <span>{new Date(heroPost.created_at).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+              <span className="mx-2">•</span>
+              <span className="text-blue-400 group-hover:underline">Baca Selanjutnya →</span>
+            </div>
+          </div>
+        </Link>
+      </section>
+
+      {/* --- SECTION 2: LATEST STORIES (GRID) --- */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
+        <div className="flex items-center justify-between mb-8 border-b border-gray-200 pb-4">
+          <h2 className="text-3xl font-bold text-gray-900 tracking-tight">
+            Terkini <span className="text-blue-600">.</span>
+          </h2>
+        </div>
+
+        {/* Grid Layout: 1 Column (Phone), 2 (Tablet), 3 (PC) */}
+        <div className="grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
+          {otherPosts.map((post) => (
+            <article key={post.id} className="flex flex-col group cursor-pointer">
+              
+              {/* Gambar Card */}
+              <Link href={`/blog/${post.slug}`} className="relative overflow-hidden rounded-2xl aspect-[16/10] mb-4 bg-gray-100 shadow-sm">
                 {post.image_url ? (
-                  <div className="relative h-48 w-full overflow-hidden bg-gray-200">
-                    <img
-                      src={post.image_url}
-                      alt={post.title}
-                      className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                    />
-                  </div>
+                  <img
+                    src={post.image_url}
+                    alt={post.title}
+                    className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
+                  />
                 ) : (
-                  <div className="flex h-48 w-full items-center justify-center bg-gray-200">
-                    <span className="text-gray-400">No Image</span>
+                  <div className="flex items-center justify-center w-full h-full text-gray-400 bg-gray-200">
+                    No Image
                   </div>
                 )}
+              </Link>
 
-                {/* Card Content */}
-                <div className="flex flex-1 flex-col justify-between p-6">
-                  <div>
-                    <Link href={`/blog/${post.slug}`} className="group block">
-                      <h2 className="text-xl font-bold text-gray-900 group-hover:text-blue-600">
-                        {post.title}
-                      </h2>
-                      {post.excerpt && (
-                        <p className="mt-3 text-base text-gray-500 line-clamp-3">
-                          {post.excerpt}
-                        </p>
-                      )}
-                    </Link>
-                  </div>
-
-                  <div className="mt-6">
-                    <Link
-                      href={`/blog/${post.slug}`}
-                      className="inline-flex items-center text-sm font-semibold text-blue-600 hover:text-blue-500"
-                    >
-                      Read full article
-                      <svg
-                        className="ml-2 h-4 w-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M14 5l7 7m0 0l-7 7m7-7H3"
-                        />
-                      </svg>
-                    </Link>
-                  </div>
+              {/* Text Card */}
+              <div className="flex-1">
+                <div className="flex items-center gap-3 text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">
+                  {/* Kalau ada kategori, boleh letak sini. Skrg kita hardcode 'News' */}
+                  <span>Tech News</span> 
+                  <span className="text-gray-300">•</span>
+                  <span className="text-gray-500 normal-case">
+                    {new Date(post.created_at).toLocaleDateString('ms-MY', { day: 'numeric', month: 'short' })}
+                  </span>
                 </div>
-              </article>
-            ))}
+                
+                <Link href={`/blog/${post.slug}`}>
+                  <h3 className="text-xl font-bold text-gray-900 leading-snug mb-3 group-hover:text-blue-600 transition-colors">
+                    {post.title}
+                  </h3>
+                </Link>
+                
+                <p className="text-gray-600 text-sm line-clamp-3 leading-relaxed">
+                  {post.excerpt || "Klik untuk baca artikel penuh..."}
+                </p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* --- SECTION 3: NEWSLETTER (Pemanis Bawah) --- */}
+      <section className="mt-20 py-16 bg-gray-900 text-white rounded-none md:mx-4 md:rounded-3xl relative overflow-hidden">
+        <div className="relative z-10 max-w-2xl mx-auto text-center px-4">
+          <h2 className="text-3xl font-bold mb-4">Jangan Terlepas Berita Tech.</h2>
+          <p className="text-gray-400 mb-8">Sertai FNDigital untuk update gajet mingguan.</p>
+          <div className="flex gap-2 justify-center">
+            <input type="email" placeholder="Email boss..." className="px-4 py-3 rounded-lg text-gray-900 w-64 focus:outline-none" />
+            <button className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-bold transition">Subscribe</button>
           </div>
-        )}
-      </div>
-    </main>
+        </div>
+        {/* Hiasan background */}
+        <div className="absolute top-0 left-0 w-64 h-64 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 -translate-x-1/2 -translate-y-1/2"></div>
+        <div className="absolute bottom-0 right-0 w-64 h-64 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 translate-x-1/2 translate-y-1/2"></div>
+      </section>
+
+    </div>
   );
 }
