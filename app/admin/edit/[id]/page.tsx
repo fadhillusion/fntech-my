@@ -1,11 +1,11 @@
 'use client';
 
-import imageCompression from 'browser-image-compression';
-import { useEffect, useState } from 'react';
+import imageCompression from 'browser-image-compression'; // <--- Import Mesin Penyek
+import { useEffect, useState, use } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
-// --- SENARAI KATEGORI (SAMA MACAM NAVBAR) ---
+// --- SENARAI KATEGORI (SAMA SEBIJIK MACAM CREATE) ---
 const categoryList = [
   { group: '📱 DIGITAL - Aplikasi & OS', options: [
       { label: 'Android', value: 'android' },
@@ -60,45 +60,76 @@ const categoryList = [
   ]},
 ];
 
-export default function CreatePost() {
+export default function EditPost({ params }: { params: Promise<{ id: string }> }) {
+  // Unboxing ID dari URL
+  const { id } = use(params);
+  
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
-
-  // Data Form
+  
+  // Data State
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
-  const [category, setCategory] = useState(''); // <--- STATE BARU UNTUK KATEGORI
+  const [category, setCategory] = useState(''); // <--- State Kategori
   const [excerpt, setExcerpt] = useState('');
   const [content, setContent] = useState('');
   const [imageUrl, setImageUrl] = useState('');
 
-  // Security Check
+  // 1. Tarik Data Lama (READ)
   useEffect(() => {
-    const checkSession = async () => {
+    const fetchData = async () => {
+      // Security Guard 👮‍♂️
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) router.push('/login');
-      else setIsChecking(false);
-    };
-    checkSession();
-  }, [router]);
+      if (!session) { router.push('/login'); return; }
 
-  // Handle Image Upload
+      // Tarik dari DB
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        alert('Artikel tak jumpa!');
+        router.push('/admin');
+      } else if (data) {
+        setTitle(data.title);
+        setSlug(data.slug);
+        setCategory(data.category || ''); // <--- Masukkan kategori lama ke dropdown
+        setExcerpt(data.excerpt || '');
+        setContent(data.content);
+        setImageUrl(data.image_url || '');
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [id, router]);
+
+  // 2. Fungsi Upload Gambar (Sama macam Create)
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
       if (!e.target.files || e.target.files.length === 0) return;
       setUploading(true);
       const originalFile = e.target.files[0];
       const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
+      
+      // Compress
       const compressedFile = await imageCompression(originalFile, options);
+      
       const fileExt = originalFile.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`;
+
+      // Upload
       const { error: uploadError } = await supabase.storage.from('images').upload(fileName, compressedFile);
       if (uploadError) throw uploadError;
+
+      // Get URL
       const { data } = supabase.storage.from('images').getPublicUrl(fileName);
       setImageUrl(data.publicUrl);
-      alert("Gambar siap! ✅");
+      alert("Gambar baru siap tukar! ✅");
+
     } catch (error: any) {
       alert("Gagal upload: " + error.message);
     } finally {
@@ -106,32 +137,29 @@ export default function CreatePost() {
     }
   };
 
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTitle = e.target.value;
-    setTitle(newTitle);
-    setSlug(newTitle.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, ''));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  // 3. Simpan Perubahan (UPDATE)
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!category) { alert("Sila pilih kategori Boss!"); return; } // Wajib pilih kategori
+    if (!category) { alert("Sila pilih kategori Boss!"); return; }
 
     setLoading(true);
     try {
-      const { error } = await supabase.from('posts').insert([
-        {
+      const { error } = await supabase
+        .from('posts')
+        .update({
           title,
           slug,
-          category, // <--- Hantar kategori ke database
+          category, // <--- Jangan lupa update kategori sekali
           excerpt,
           content,
           image_url: imageUrl,
-          is_published: true,
-        },
-      ]);
+        })
+        .eq('id', id);
+
       if (error) throw error;
-      alert('Artikel Berjaya Publish! 🎉');
-      router.push('/'); 
+      alert('Artikel Berjaya Update! ✅');
+      router.push('/admin');
+
     } catch (err: any) {
       alert('Error: ' + err.message);
     } finally {
@@ -139,32 +167,33 @@ export default function CreatePost() {
     }
   };
 
-  if (isChecking) return <div>Checking...</div>;
+  if (loading) return <div className="text-center p-10">Mengambil data artikel...</div>;
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
       <div className="max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-lg">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Tulis Artikel Baru ✍️</h1>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Edit Artikel ✏️</h1>
+
+        <form onSubmit={handleUpdate} className="space-y-6">
           
           {/* Tajuk & Slug */}
           <div>
             <label className="block text-sm font-medium text-gray-700">Tajuk</label>
-            <input type="text" required value={title} onChange={handleTitleChange} className="w-full border p-3 rounded-md" />
+            <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full border p-3 rounded-md" required />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Slug</label>
-            <input type="text" required value={slug} onChange={e => setSlug(e.target.value)} className="w-full border p-2 bg-gray-100 rounded-md text-sm" />
+            <input type="text" value={slug} onChange={e => setSlug(e.target.value)} className="w-full border p-2 bg-gray-100 rounded-md text-sm" />
           </div>
 
-          {/* --- PILIH KATEGORI (DROPDOWN BARU) --- */}
+          {/* --- PILIH KATEGORI (EDIT) --- */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Kategori Artikel</label>
             <select 
                 required 
                 value={category} 
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full border border-gray-300 p-3 rounded-md bg-white focus:ring-blue-500 focus:border-blue-500"
+                className="w-full border border-gray-300 p-3 rounded-md bg-white focus:ring-blue-500"
             >
                 <option value="">-- Sila Pilih Kategori --</option>
                 {categoryList.map((group, index) => (
@@ -178,14 +207,20 @@ export default function CreatePost() {
                 ))}
             </select>
           </div>
-          {/* ------------------------------------- */}
 
           {/* Gambar Upload */}
           <div>
             <label className="block text-sm font-medium text-gray-700">Gambar</label>
             <input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploading} className="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-            {uploading && <p className="text-xs text-blue-500 mt-1">Uploading...</p>}
-            {imageUrl && <img src={imageUrl} alt="Preview" className="mt-2 h-40 rounded shadow" />}
+            
+            {uploading && <p className="text-xs text-blue-500 mt-1 animate-pulse">Sedang compress & upload...</p>}
+            
+            {imageUrl && (
+                <div className="mt-3">
+                    <p className="text-xs text-gray-500 mb-1">Gambar Semasa:</p>
+                    <img src={imageUrl} alt="Preview" className="h-40 rounded shadow-md object-cover" />
+                </div>
+            )}
           </div>
 
           {/* Excerpt & Content */}
@@ -201,8 +236,8 @@ export default function CreatePost() {
           {/* Buttons */}
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => router.back()} className="px-4 py-2 bg-gray-200 rounded">Batal</button>
-            <button type="submit" disabled={loading || uploading} className="px-6 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 disabled:bg-blue-300">
-              {loading ? 'Publishing...' : 'Publish'}
+            <button type="submit" disabled={loading || uploading} className="px-6 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700">
+              {loading ? 'Saving...' : 'Simpan Perubahan'}
             </button>
           </div>
         </form>
