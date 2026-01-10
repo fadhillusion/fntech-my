@@ -1,113 +1,100 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import Link from 'next/link';
-
-// --- KAMUS KATEGORI ---
-const categoryMap: Record<string, string> = {
-  'android': 'Android', 'ios': 'iOS', 'linux': 'Linux & Lain', 'macos': 'macOS', 'windows': 'Windows',
-  'fintech': 'Fintech & eWallet', 'gaming': 'Gaming (E-Sukan)', 'telco': 'Telco & Pelan',
-  'multimedia': 'Kreatif & Multimedia', 'security': 'Siber & Sekuriti', 'network': 'Sistem & Rangkaian', 'dev': 'Web & Perisian',
-  'headphone': 'Headphone', 'smartwatch': 'Smartwatch', 'speaker': 'Speaker', 'tws': 'TWS',
-  'desktop': 'Desktop', 'laptop': 'Laptop', 'monitor': 'Monitor', 'storage': 'Storan & RAM',
-  'flagship': 'Flagship', 'foldable': 'Foldable', 'gaming-phone': 'Gaming Phone', 'midrange': 'Mid-Range',
-  'tablet': 'Tablet & 2-in-1',
-  'tips': 'Tips (Life-hacks)', 'trivia': 'Trivia', 'tutorial': 'Tutorial',
-  'news': 'Berita', 'reviews': 'Ulasan',
-  'automotive': 'Automotif (EV)', 'ai': 'AI (Kecerdasan Buatan)', 'science': 'Sains & Angkasa', 'smart-utility': 'Utiliti Pintar'
-};
+import { createClient } from '@/lib/supabase-client';
 
 export default function AdminDashboard() {
-  const [posts, setPosts] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    totalPosts: 0,
+    totalViews: 0,
+    latestPost: 'Tiada Data',
+  });
   const [loading, setLoading] = useState(true);
-
-  // Fungsi delete
-  const handleDelete = async (id: string) => {
-    if (!confirm('Betul ke nak padam artikel ni Boss?')) return;
-    const { error } = await supabase.from('posts').delete().eq('id', id);
-    if (error) alert('Error: ' + error.message);
-    else {
-      setPosts(posts.filter((post) => post.id !== id)); // Buang dari screen
-      alert('Artikel dah padam! 🗑️');
-    }
-  };
+  const supabase = createClient();
 
   useEffect(() => {
-    const fetchPosts = async () => {
-      // Tarik data artikel
-      const { data, error } = await supabase
+    const fetchStats = async () => {
+      // 1. Ambil semua post (cuma ambil column id, title, views, created_at)
+      const { data } = await supabase
         .from('posts')
-        .select('*')
+        .select('id, title, views, created_at')
         .order('created_at', { ascending: false });
 
-      if (data) setPosts(data);
+      if (data) {
+        const totalPosts = data.length;
+        // Kira total views (Campur semua views)
+        const totalViews = data.reduce((acc, curr) => acc + (curr.views || 0), 0);
+        const latestPost = data[0]?.title || 'Tiada Data';
+
+        setStats({ totalPosts, totalViews, latestPost });
+      }
       setLoading(false);
     };
 
-    fetchPosts();
-  }, []);
+    fetchStats();
+  }, [supabase]);
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Sedang memuatkan data...</div>;
+  if (loading) return <div className="p-8 text-gray-500">Mengira statistik...</div>;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-        <h2 className="text-xl font-bold text-gray-800">Artikel Terkini</h2>
-        <Link href="/admin/create" className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 shadow-sm transition">
-          + Artikel Baru
-        </Link>
+    <div>
+      <h1 className="text-2xl font-bold text-gray-800 mb-6">Ringkasan Dashboard</h1>
+
+      {/* --- GRID STATISTIK --- */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        
+        {/* KAD 1: TOTAL POST */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-100 text-blue-600 rounded-lg">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Jumlah Artikel</p>
+              <h3 className="text-2xl font-bold text-gray-900">{stats.totalPosts}</h3>
+            </div>
+          </div>
+        </div>
+
+        {/* KAD 2: TOTAL VIEWS */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-green-100 text-green-600 rounded-lg">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Total Pembaca (Views)</p>
+              <h3 className="text-2xl font-bold text-gray-900">{stats.totalViews}</h3>
+            </div>
+          </div>
+        </div>
+
+        {/* KAD 3: LATEST POST */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-purple-100 text-purple-600 rounded-lg">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            </div>
+            <div className="overflow-hidden">
+              <p className="text-sm text-gray-500 font-medium">Artikel Terkini</p>
+              <h3 className="text-sm font-bold text-gray-900 truncate" title={stats.latestPost}>
+                {stats.latestPost}
+              </h3>
+            </div>
+          </div>
+        </div>
+
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="text-sm font-semibold text-gray-600 bg-gray-100 border-b border-gray-200">
-              <th className="p-4">Tajuk</th>
-              <th className="p-4">Kategori</th>
-              <th className="p-4">Tarikh</th>
-              <th className="p-4 text-center">Views</th>
-              <th className="p-4 text-right">Tindakan</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {posts.map((post) => (
-              <tr key={post.id} className="hover:bg-blue-50 transition duration-150">
-                <td className="p-4 font-medium text-gray-900 max-w-md truncate">{post.title}</td>
-                
-                {/* --- FIX KATEGORI DISINI --- */}
-                <td className="p-4 text-sm text-blue-600 font-semibold">
-                    {/* Guna kamus tadi, kalau tak jumpa guna huruf asal */}
-                    {categoryMap[post.category] || post.category || '-'}
-                </td>
-                
-                <td className="p-4 text-sm text-gray-500">
-                  {new Date(post.created_at).toLocaleDateString('ms-MY')}
-                </td>
-                
-                <td className="p-4 text-center font-bold text-gray-700">
-                    {post.views || 0}
-                </td>
-
-                <td className="p-4 text-right space-x-3">
-                  <Link href={`/admin/edit/${post.id}`} className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-                    Edit
-                  </Link>
-                  <button onClick={() => handleDelete(post.id)} className="text-red-500 hover:text-red-700 font-medium text-sm">
-                    Padam
-                  </button>
-                </td>
-              </tr>
-            ))}
-            
-            {posts.length === 0 && (
-                <tr>
-                    <td colSpan={5} className="p-8 text-center text-gray-400 italic">Belum ada artikel boss. Jom tulis satu!</td>
-                </tr>
-            )}
-          </tbody>
-        </table>
+      {/* --- QUICK ACTION --- */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl p-8 text-white shadow-lg">
+        <h2 className="text-2xl font-bold mb-2">Selamat Kembali, Boss! 👋</h2>
+        <p className="text-blue-100 mb-6">Sedia untuk berkongsi info teknologi terkini? Jom tulis artikel baru sekarang.</p>
+        <a href="/admin/create" className="inline-block bg-white text-blue-700 px-6 py-3 rounded-lg font-bold hover:bg-gray-100 transition shadow-md">
+          ✍️ Tulis Artikel Baru
+        </a>
       </div>
+
     </div>
   );
 }

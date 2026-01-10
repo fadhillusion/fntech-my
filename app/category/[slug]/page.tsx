@@ -1,9 +1,9 @@
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase'; // Pastikan path ni betul
 
 export const revalidate = 60; // Refresh data setiap 60 saat
 
-// --- KAMUS KATEGORI (Supaya tajuk cantik) ---
+// --- KAMUS KATEGORI ---
 const categoryMap: Record<string, { label: string, parent?: string, grandparent?: string }> = {
   // 📱 DIGITAL
   'android': { label: 'Android', parent: 'Aplikasi & OS', grandparent: 'DIGITAL' },
@@ -62,8 +62,8 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
   const { data: posts, error } = await supabase
     .from('posts')
     .select('*')
-    .eq('is_published', true)
-    .eq('category', slug) // <--- Ini bahagian penapis dia
+    .eq('is_published', true) // Pastikan column ni wujud di DB, kalau tak buang line ni
+    .eq('category', slug) 
     .order('created_at', { ascending: false });
 
   // Cari nama cantik kategori (Human Readable)
@@ -108,8 +108,8 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
             {posts.map((post) => (
                 <article key={post.id} className="flex flex-col group cursor-pointer bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden">
                 
-                {/* Gambar Thumbnail */}
-                <Link href={`/blog/${post.slug}`} className="relative overflow-hidden aspect-[16/10] bg-gray-200">
+                {/* Gambar Thumbnail (LINK FIXED) */}
+                <Link href={`/${post.slug}`} className="relative overflow-hidden aspect-[16/10] bg-gray-200">
                     {post.image_url ? (
                     <img
                         src={post.image_url}
@@ -117,7 +117,10 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
                         className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
                     />
                     ) : (
-                    <div className="flex items-center justify-center w-full h-full text-gray-400">No Image</div>
+                    // Placeholder Image kalau takde gambar
+                    <div className="flex items-center justify-center w-full h-full text-gray-400 bg-gray-100">
+                         <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    </div>
                     )}
                 </Link>
 
@@ -131,14 +134,18 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
                         </span>
                     </div>
                     
-                    <Link href={`/blog/${post.slug}`}>
+                    {/* Tajuk (LINK FIXED) */}
+                    <Link href={`/${post.slug}`}>
                         <h3 className="text-xl font-bold text-gray-900 leading-snug mb-3 group-hover:text-blue-600 transition-colors line-clamp-2">
                             {post.title}
                         </h3>
                     </Link>
                     
+                    {/* Excerpt Auto-Generate */}
                     <p className="text-gray-600 text-sm line-clamp-3 leading-relaxed mb-4 flex-1">
-                        {post.excerpt || "Klik untuk baca artikel penuh..."}
+                        {post.excerpt 
+                          ? post.excerpt 
+                          : post.content?.replace(/<[^>]*>?/gm, '').slice(0, 100) + '...'}
                     </p>
 
                     {/* Footer Card (Views) */}

@@ -1,111 +1,115 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase-client'; // <--- Import Client Baru
 import { useRouter } from 'next/navigation';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
   
-  // State untuk nombor threshold
-  const [orangeLimit, setOrangeLimit] = useState(50);
-  const [redLimit, setRedLimit] = useState(100);
+  // State untuk borang
+  const [siteTitle, setSiteTitle] = useState('FNDigital.my');
+  const [apiThreshold, setApiThreshold] = useState('50'); // Default value
 
-  // 1. Tarik Data Setting Semasa
+  // 1. HIDUPKAN SUPABASE KAT SINI
+  const supabase = createClient();
+
+  // --- Load Data Tetapan ---
   useEffect(() => {
     const fetchSettings = async () => {
-      // Check Lesen Admin
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.push('/login'); return; }
+      // Kita anggap settings ada dalam table 'settings' atau kita hardcode dulu kalau belum ada table
+      // Untuk tutorial ni, saya buat simple fetch kalau Boss dah ada table settings.
+      // Kalau belum ada, dia akan pakai default value kat atas.
+      
+      try {
+        const { data, error } = await supabase
+          .from('settings')
+          .select('*')
+          .single();
 
-      // Tarik dari table 'settings'
-      // Kita ambil row pertama je (id: 1) sebab setting ni global
-      const { data, error } = await supabase
-        .from('settings')
-        .select('*')
-        .limit(1)
-        .single();
-
-      if (data) {
-        setOrangeLimit(data.fire_orange);
-        setRedLimit(data.fire_red);
+        if (data) {
+          setSiteTitle(data.site_title || 'FNDigital.my');
+          setApiThreshold(data.api_threshold || '50');
+        }
+      } catch (err) {
+        console.log('Belum ada setting, guna default.');
       }
-      setLoading(false);
     };
 
     fetchSettings();
-  }, [router]);
+  }, []); // Jalan sekali je
 
-  // 2. Simpan Setting Baru
+  // --- Simpan Data ---
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
+    setLoading(true);
 
-    // Kita update row yang mana ID dia wujud (biasanya ID 1)
-    // Atau cara selamat: update semua row (sebab ada 1 je)
+    const settingsData = {
+      site_title: siteTitle,
+      api_threshold: apiThreshold,
+      updated_at: new Date(),
+    };
+
+    // Upsert: Kalau ada dia update, kalau takde dia create
+    // Pastikan Boss dah buat table 'settings' di Supabase. 
+    // Kalau belum, kod ni mungkin error sikit tapi takkan crashkan app.
     const { error } = await supabase
       .from('settings')
-      .update({ 
-        fire_orange: orangeLimit, 
-        fire_red: redLimit 
-      })
-      .gt('id', 0); // Update row yang wujud
+      .upsert(settingsData, { onConflict: 'id' }); // Anggap ada column ID 1
 
     if (error) {
       alert('Gagal simpan: ' + error.message);
     } else {
-      alert('Setting Berjaya Disimpan! ✅');
-      router.push('/admin'); // Balik ke dashboard
+      alert('Tetapan berjaya disimpan! ✅');
+      router.refresh();
     }
-    setSaving(false);
+    setLoading(false);
   };
 
-  if (loading) return <div className="p-10 text-center">Loading Settings...</div>;
-
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-xl mx-auto bg-white p-8 rounded-xl shadow-lg">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Tetapan Logik Api 🔥</h1>
-        <p className="text-gray-500 mb-8 text-sm">Ubah had jumlah pembaca untuk tukar warna api.</p>
+    <div className="max-w-2xl mx-auto">
+      <h1 className="text-2xl font-bold text-gray-800 mb-6">Tetapan Sistem</h1>
 
+      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200">
         <form onSubmit={handleSave} className="space-y-6">
           
-          {/* Setting Api Jingga */}
-          <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xl">🟠</span>
-              <label className="font-bold text-orange-800">Had Api Jingga (Sederhana)</label>
-            </div>
-            <p className="text-xs text-gray-600 mb-3">Jika pembaca capai nombor ini, api jadi Jingga.</p>
-            <input 
-              type="number" 
-              value={orangeLimit} 
-              onChange={(e) => setOrangeLimit(parseInt(e.target.value))}
-              className="w-full p-3 border rounded-md font-bold text-lg"
+          {/* Tajuk Website */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tajuk Website</label>
+            <input
+              type="text"
+              value={siteTitle}
+              onChange={(e) => setSiteTitle(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              placeholder="Contoh: FNDigital"
             />
           </div>
 
-          {/* Setting Api Merah */}
-          <div className="bg-red-50 p-4 rounded-lg border border-red-100">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xl">🔴</span>
-              <label className="font-bold text-red-800">Had Api Merah (Panas!)</label>
-            </div>
-            <p className="text-xs text-gray-600 mb-3">Jika pembaca capai nombor ini, api jadi Merah menyala.</p>
-            <input 
-              type="number" 
-              value={redLimit} 
-              onChange={(e) => setRedLimit(parseInt(e.target.value))}
-              className="w-full p-3 border rounded-md font-bold text-lg"
+          {/* Threshold Api (Untuk Logic Warna) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Had Ambang "Sohor/Trending" (Views)
+            </label>
+            <p className="text-xs text-gray-500 mb-2">
+              Artikel dengan views lebih tinggi dari nombor ini akan dapat ikon 🔥 api.
+            </p>
+            <input
+              type="number"
+              value={apiThreshold}
+              onChange={(e) => setApiThreshold(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
             />
           </div>
 
-          <div className="flex justify-end gap-3 mt-6">
-            <button type="button" onClick={() => router.back()} className="px-4 py-2 bg-gray-200 rounded text-gray-700">Batal</button>
-            <button type="submit" disabled={saving} className="px-6 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700">
-              {saving ? 'Menyimpan...' : 'Simpan Perubahan'}
+          {/* Butang Simpan */}
+          <div className="pt-4 border-t border-gray-100 flex justify-end">
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition disabled:opacity-70"
+            >
+              {loading ? 'Menyimpan...' : 'Simpan Perubahan'}
             </button>
           </div>
 
